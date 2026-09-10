@@ -1,0 +1,15 @@
+{
+  "name": "college-junction",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "build:types": "npm run build -w @college-junction/types",
+    "dev:api": "npm run build:types && npm run dev -w @college-junction/api",
+    "build:api": "npm run build:types && npm run build -w @college-junction/api",
+    "typecheck": "npm run build:types && npm run typecheck -w @college-junction/api",
+    "seed:admin": "npm run seed:admin -w @college-junction/api",
+    "smoke": "bash apps/api/scripts/smoke.sh"
+  },
+  "engines": { "node": ">=20" }
+}
