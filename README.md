@@ -4,11 +4,30 @@ Campus notes-and-problem-sharing platform. Monorepo (npm workspaces):
 
 ```
 apps/api          Express + TypeScript + Mongoose API   (✅ built)
-apps/web          Next.js 14 App Router frontend        (⏳ next step)
+apps/web          Next.js 14 App Router frontend        (✅ built)
 packages/types    Shared TS interfaces + Zod schemas used by both
 ```
 
-## Quick start (API)
+## Quick start
+
+```bash
+npm install
+cp apps/api/.env.example apps/api/.env      # fill in secrets
+cp apps/web/.env.example apps/web/.env.local
+npm run dev:api                              # http://localhost:4000
+npm run dev:web                              # http://localhost:3000 (proxies /api → :4000 in dev)
+npm run smoke                                # API e2e curl suite (100 checks)
+```
+
+### Frontend notes
+- Pages: `/`, `/auth/{signin,signup,verify-email,forgot-password,reset-password}`, `/profile/complete`, `/dashboard`, `/profile/[username]`, `/post/[id]`, `/admin`.
+- `src/lib/api.ts` is the single axios instance (`withCredentials`, `X-Requested-With`, silent refresh-and-retry on 401).
+- `middleware.ts` does a presence-only cookie check for `/dashboard`, `/profile/complete`, `/admin`; `<AuthGuard>` then enforces sign-in / profile completion / admin role client-side.
+- Theme: `next-themes` (`attribute="class"`), all brand colours as HSL CSS variables in `globals.css`; no hex classes in components.
+- Split-origin deploy: set `NEXT_PUBLIC_API_URL=https://api.example.com` (browser calls the API directly, cookies `SameSite=None; Secure`). Same-host/dev: leave it empty and `/api/*` is rewritten to `API_INTERNAL_URL`.
+- Fonts use a system stack (Inter if installed) — no Google Fonts fetch at build time.
+
+## API quick start
 
 ```bash
 npm install
