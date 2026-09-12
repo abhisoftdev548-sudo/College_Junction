@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Typecheck, build & API smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MONGOMS_DISABLE_POSTINSTALL: "1" # don't download mongod during npm ci
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build API
+        run: npm run build:api
+
+      - name: Build web
+        run: npm run build:web
+
+      # The API boots with an in-memory MongoDB (dev mode, MONGODB_URI empty),
+      # so no database service is needed for the smoke suite.
+      - name: Start API
+        env:
+          PORT: 4000
+          NODE_ENV: development
+          JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
+          JWT_REFRESH_SECRET: ci-refresh-secret-0123456789abcdef
+          JWT_EMAIL_SECRET: ci-email-secret-0123456789abcdef
+          DISABLE_RATE_LIMIT: "true" # the suite deliberately hammers endpoints
+        run: |
+          node apps/api/dist/server.js > api.log 2>&1 &
+          echo $! > api.pid
+          for i in $(seq 1 120); do
+            curl -sf http://localhost:4000/api/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:4000/api/health
+
+      - name: Smoke tests (100 checks)
+        run: bash apps/api/scripts/smoke.sh
+
+      - name: API logs
+        if: failure()
+        run: cat api.log
+
+      - name: Stop API
+        if: always()
+        run: kill $(cat api.pid) 2>/dev/null || true
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          cache-from: type=gha,scope=api
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.web
+          push: false
+          cache-from: type=gha,scope=web

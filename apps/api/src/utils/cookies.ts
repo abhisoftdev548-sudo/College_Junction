@@ -1,5 +1,5 @@
 import type { Response, CookieOptions } from 'express';
-import { env, cookieSecure } from '../config/env';
+import { env, cookieSecure, cookieSameSite } from '../config/env';
 
 export const ACCESS_COOKIE = 'access_token';
 export const REFRESH_COOKIE = 'refresh_token';
@@ -8,7 +8,8 @@ function base(): CookieOptions {
   return {
     httpOnly: true,
     secure: cookieSecure,
-    sameSite: cookieSecure ? 'none' : 'lax',
+    // 'lax' (default) for the same-origin /api proxy; 'none' only for split-origin deploys.
+    sameSite: cookieSameSite,
     path: '/',
     ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   };

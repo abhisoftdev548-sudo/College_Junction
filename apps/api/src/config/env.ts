@@ -15,11 +15,19 @@ const envSchema = z.object({
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().default(7),
 
-  /** Force secure/sameSite=none cookies regardless of NODE_ENV (useful for HTTPS previews). */
+  /** Force secure cookies regardless of NODE_ENV (useful for HTTPS previews). */
   COOKIE_SECURE: z
     .enum(['true', 'false'])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
+  /**
+   * Cookie SameSite policy. Default 'lax' — the recommended deploy serves the
+   * web app and API from one host via the Next.js /api proxy, so cookies never
+   * cross sites. Set 'none' only for split-origin deploys where the browser
+   * calls the API on another site; that forces Secure cookies (browsers reject
+   * SameSite=None without Secure).
+   */
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   COOKIE_DOMAIN: z.string().optional(),
 
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
@@ -71,8 +79,17 @@ if (isProd && env.DISABLE_RATE_LIMIT) {
   process.exit(1);
 }
 
-/** Cookie security is env-driven (spec §1.1): prod → secure + none; dev → lax + insecure. */
-export const cookieSecure = env.COOKIE_SECURE ?? isProd;
+/** Cookie security is env-driven (spec §1.1): prod → secure; dev → insecure. */
+const wantSecure = env.COOKIE_SECURE ?? isProd;
+
+if (env.COOKIE_SAMESITE === 'none' && !wantSecure) {
+  console.warn('⚠️  COOKIE_SAMESITE=none needs Secure cookies — forcing secure=true (browsers drop insecure SameSite=None cookies)');
+}
+
+export const cookieSecure = env.COOKIE_SAMESITE === 'none' ? true : wantSecure;
+
+/** SameSite policy (see COOKIE_SAMESITE above). 'lax' by default (same-origin proxy mode). */
+export const cookieSameSite = env.COOKIE_SAMESITE;
 
 export const allowedOrigins: string[] = [
   env.CLIENT_URL,

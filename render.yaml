@@ -1,0 +1,76 @@
+# Render blueprint — full stack (web + api) from this repo.
+#
+# 1. Push this repo to GitHub and pick "New → Blueprint" on Render (or push to a
+#    connected branch with blueprint sync enabled).
+# 2. When prompted, paste your MongoDB URI (Render has no managed MongoDB —
+#    create a free cluster at https://cloud.mongodb.com) and, optionally, your
+#    Cloudinary + SMTP credentials. Everything else is pre-wired.
+# 3. Service URLs default to <name>.onrender.com; if a name is already taken
+#    Render appends a suffix — update CLIENT_URL / API_INTERNAL_URL accordingly
+#    (or set them yourself as environment variables).
+services:
+  - type: web
+    name: college-junction-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # paste your Atlas connection string
+      - key: CLIENT_URL
+        value: https://college-junction-web.onrender.com
+      - key: EXTRA_CLIENT_ORIGINS
+        sync: false # optional: comma-separated extra allowed origins
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EMAIL_SECRET
+        generateValue: true
+      - key: TRUST_PROXY
+        value: "true" # behind Render's edge proxy (correct client IPs for rate limiting)
+      - key: BOOTSTRAP_ADMIN
+        sync: false # optional: "true" + the three vars below to auto-create an admin
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false # optional: without these, uploads are disabled (503)
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false # optional: without these, emails are logged to the console
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+  - type: web
+    name: college-junction-web
+    env: docker
+    dockerfilePath: ./Dockerfile.web
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      # Same-origin mode: the browser only talks to the web service; Next.js
+      # proxies /api/* to the API service. Leave NEXT_PUBLIC_API_URL unset.
+      - key: API_INTERNAL_URL
+        value: https://college-junction-api.onrender.com
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://college-junction-web.onrender.com

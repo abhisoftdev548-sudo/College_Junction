@@ -1,5 +1,5 @@
 import type { PublicUser, PostDTO, CommentDTO, CursorPage, OffsetPage, FilterOptions, ListPostsQuery, CompleteProfileInput } from '@college-junction/types';
-import { get, post, put, patch, del } from './api';
+import { get, post, put, patch, del, postForm } from './api';
 
 // ---- auth ----
 export const authApi = {

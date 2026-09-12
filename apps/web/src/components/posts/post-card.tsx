@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ShareButton } from './share-button';
+import { PdfViewer } from './pdf-viewer';
 import { useAuth } from '@/lib/auth-context';
 import { postsApi } from '@/lib/queries';
 import { RequestError } from '@/lib/api';
