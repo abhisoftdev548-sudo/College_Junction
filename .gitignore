@@ -8,4 +8,5 @@ coverage/
 .env.*
 !.env.example
 apps/api/uploads/
+*.tsbuildinfo
 .DS_Store

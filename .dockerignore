@@ -1,0 +1,15 @@
+# Never send these into the Docker build context.
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/tsconfig.tsbuildinfo
+coverage
+*.log
+.env
+.env.*
+!.env.example
+apps/api/uploads
+.claude

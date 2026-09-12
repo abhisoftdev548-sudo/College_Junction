@@ -1,7 +1,8 @@
 import { createApp } from './app';
 import { connectDB, disconnectDB } from './config/db';
-import { env, allowedOrigins, cookieSecure, cloudinaryConfigured, smtpConfigured } from './config/env';
+import { env, allowedOrigins, cookieSecure, cookieSameSite, cloudinaryConfigured, smtpConfigured } from './config/env';
 import { ensureAdminFromEnv } from './services/admin.bootstrap';
+import { verifySmtp } from './services/email.service';
 import { startOrphanCleanupJob, stopOrphanCleanupJob } from './jobs/orphanCleanup';
 
 async function main() {
@@ -14,11 +15,22 @@ async function main() {
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`🚀 API listening on http://0.0.0.0:${env.PORT} [${env.NODE_ENV}]`);
     console.log(`   CORS origins: ${allowedOrigins.join(', ')}`);
-    console.log(`   Cookies: secure=${cookieSecure} sameSite=${cookieSecure ? 'none' : 'lax'}`);
+    console.log(`   Cookies: secure=${cookieSecure} sameSite=${cookieSameSite}${env.COOKIE_DOMAIN ? ` domain=${env.COOKIE_DOMAIN}` : ''}`);
     console.log(`   Cloudinary: ${cloudinaryConfigured ? 'configured' : 'NOT configured (uploads disabled)'}`);
-    console.log(`   SMTP: ${smtpConfigured ? 'configured' : 'NOT configured (emails logged to console)'}`);
+    console.log(`   SMTP: ${smtpConfigured ? 'configured — checking connection…' : 'NOT configured (emails logged to console)'}`);
   });
   startOrphanCleanupJob();
+
+  // Startup check: verify the SMTP connection in the background so a slow or
+  // unreachable mail server can't delay boot. Misconfig is loud in the logs but
+  // non-fatal — email failures are then reported per-send.
+  if (smtpConfigured) {
+    void verifySmtp().then((r) => {
+      console.log(r.ok
+        ? `   SMTP: ✅ ${r.detail}`
+        : `   SMTP: ⚠️  ${r.detail} — email sends will fail until this is fixed`);
+    });
+  }
 
   const shutdown = async (sig: string) => {
     console.log(`\n${sig} received, shutting down…`);

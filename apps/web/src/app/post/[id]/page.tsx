@@ -9,7 +9,13 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     const r = await fetch(`${API}/api/posts/${params.id}`, { next: { revalidate: 60 } });
     if (!r.ok) return { title: 'Post' };
     const { data } = await r.json();
-    return { title: data.post.title, description: String(data.post.description).slice(0, 160), openGraph: { title: data.post.title, description: String(data.post.description).slice(0, 160), images: data.post.fileType === 'image' && data.post.fileUrl ? [data.post.fileUrl] : undefined } };
+    // Cloudinary renders page 1 of a PDF when delivered with a .jpg extension.
+    const ogImage = data.post.fileType === 'image' && data.post.fileUrl
+      ? data.post.fileUrl
+      : data.post.fileType === 'pdf' && typeof data.post.fileUrl === 'string' && data.post.fileUrl.startsWith('https://res.cloudinary.com/')
+        ? data.post.fileUrl.replace(/\.pdf$/, '.jpg')
+        : undefined;
+    return { title: data.post.title, description: String(data.post.description).slice(0, 160), openGraph: { title: data.post.title, description: String(data.post.description).slice(0, 160), images: ogImage ? [ogImage] : undefined } };
   } catch { return { title: 'Post' }; }
 }
 

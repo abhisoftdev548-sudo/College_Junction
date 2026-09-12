@@ -1,0 +1,35 @@
+# ── College Junction web (Next.js 14) ───────────────────────────────────────
+# Build from the REPO ROOT:   docker build -f Dockerfile.web -t college-junction-web .
+# Run:   docker run -p 3000:3000 -e API_INTERNAL_URL=http://api:4000 college-junction-web
+FROM node:20-alpine AS build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1 BUILD_STANDALONE=1
+
+# Only the web workspace (+ shared types) — apps/api's package.json is copied
+# just so the workspace glob resolves; its dependencies are not installed.
+COPY package.json package-lock.json ./
+COPY packages/types/package.json packages/types/
+COPY apps/web/package.json apps/web/
+COPY apps/api/package.json apps/api/
+RUN MONGOMS_DISABLE_POSTINSTALL=1 npm ci --workspace @college-junction/web
+
+COPY packages/types packages/types
+COPY apps/web apps/web
+RUN npm run build:types && npm run --workspace @college-junction/web build
+
+# ── Runtime (Next.js standalone server) ─────────────────────────────────────
+FROM node:20-alpine
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
+WORKDIR /app
+USER node
+
+# .next/standalone mirrors the monorepo layout (server.js + minimal node_modules).
+COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./
+# Static assets are not part of the standalone bundle.
+COPY --from=build --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
+
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${PORT}/" >/dev/null || exit 1
+
+CMD ["node", "apps/web/server.js"]

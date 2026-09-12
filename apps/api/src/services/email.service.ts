@@ -11,9 +11,39 @@ function getTransporter(): Transporter | null {
       port: env.SMTP_PORT,
       secure: env.SMTP_SECURE ?? env.SMTP_PORT === 465,
       auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
+      // Fail fast instead of hanging the request / startup check on a dead mail server.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     });
   }
   return transporter;
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
+/**
+ * Startup check: opens (and closes) a real SMTP connection so misconfiguration
+ * shows up in the boot logs instead of surfacing later as per-request failures.
+ * Never throws — the API still boots; failed sends are logged when they happen.
+ */
+export async function verifySmtp(): Promise<{ ok: boolean; detail: string }> {
+  const t = getTransporter();
+  if (!t) return { ok: true, detail: 'not configured (emails are logged to the console)' };
+  try {
+    await withTimeout(t.verify(), 8_000, `no response from ${env.SMTP_HOST}:${env.SMTP_PORT} within 8s`);
+    return { ok: true, detail: `connected to ${env.SMTP_HOST}:${env.SMTP_PORT}${env.SMTP_USER ? ` as ${env.SMTP_USER}` : ''}` };
+  } catch (e) {
+    return { ok: false, detail: (e as Error).message };
+  }
 }
 
 interface Mail { to: string; subject: string; html: string; text: string }
@@ -22,10 +52,17 @@ async function send(mail: Mail): Promise<void> {
   const t = getTransporter();
   if (!t) {
     // Dev fallback: no SMTP configured → log the email so links are usable locally.
-    console.log(`\n📧 [email:dev] To: ${mail.to}\nSubject: ${mail.subject}\n${mail.text}\n`);
+    const line = '─'.repeat(74);
+    console.log(`\n${line}\n📧 [email:dev] SMTP not configured — printing instead of sending\n  To:      ${mail.to}\n  Subject: ${mail.subject}\n${line}\n${mail.text}\n${line}\n`);
     return;
   }
-  await t.sendMail({ from: env.EMAIL_FROM, ...mail });
+  try {
+    const info = await t.sendMail({ from: env.EMAIL_FROM, ...mail });
+    console.log(`📧 Email sent: "${mail.subject}" → ${mail.to} (id ${info.messageId})`);
+  } catch (e) {
+    console.error(`📧 Email FAILED: "${mail.subject}" → ${mail.to} — ${(e as Error).message}`);
+    throw e;
+  }
 }
 
 const layout = (title: string, body: string, cta: { href: string; label: string }) => `
