@@ -10,3 +10,6 @@ coverage/
 apps/api/uploads/
 *.tsbuildinfo
 .DS_Store
+# temporary course download artifacts (keep out of git)
+*.zip
+/index.html
